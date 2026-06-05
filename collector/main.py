@@ -18,6 +18,8 @@ def main():
                     print("Storing Clicks...")
                     collector.store_clicks(click_buffer)
                     click_buffer = []
+        else:
+            mouse.device = mouse.detect_mouse()
 
 
 if __name__ == "__main__":
