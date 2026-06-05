@@ -9,15 +9,32 @@ from evdev import InputDevice, ecodes, list_devices
 class Mouse:
     def __init__(self):
         self.compositor: Compositor = detect_compositor()
-        self.device: InputDevice = self.detect_mouse()
+        self.device: InputDevice|None = self.detect_mouse()
 
         self.position_handler:PositionHandler = PositionHandler(self.compositor)
 
     def detect_mouse(self):
-        all_devices = [InputDevice(path) for path in list_devices()]
-        for d in all_devices:
-            if d.name == "Logitech USB Receiver Mouse":
-                return d
+        valid_mice = []
+        for path in list_devices():
+            dev = InputDevice(path)
+            capabilities = dev.capabilities()
+            if ecodes.EV_KEY in capabilities:
+                if ecodes.BTN_LEFT not in capabilities[ecodes.EV_KEY]:
+                    continue
+                if ecodes.BTN_RIGHT not in capabilities[ecodes.EV_KEY]:
+                    continue
+                if ecodes.BTN_MIDDLE not in capabilities[ecodes.EV_KEY]:
+                    continue
+            if ecodes.EV_REL in capabilities:
+                if ecodes.REL_X not in capabilities[ecodes.EV_REL]:
+                    continue
+                if ecodes.REL_Y not in capabilities[ecodes.EV_REL]:
+                    continue
+            valid_mice.append(dev)
+
+        if not valid_mice:
+            return None
+        return valid_mice[0]
 
     def get_position(self) -> tuple[int, int] | None:
         return self.position_handler.get_position()
