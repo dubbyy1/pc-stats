@@ -27,7 +27,7 @@ class Mouse:
             if event.type == ecodes.EV_KEY and event.value == 1:
                 pos = self.get_position()
                 if pos:
-                    MOUSE_BUTTONS = {272: "LEFT", 273: "RIGHT", 274: "MIDDLE"}
+                    MOUSE_BUTTONS = {ecodes.BTN_LEFT: "LEFT", ecodes.BTN_RIGHT: "RIGHT", ecodes.BTN_MIDDLE: "MIDDLE"}
                     return (pos[0], pos[1], MOUSE_BUTTONS[event.code])
 
 class PositionHandler:
@@ -38,7 +38,7 @@ class PositionHandler:
             case Compositor.KDE_WAYLAND:
                 self.setup_kde_wayland()
             case _:
-                print("yo")
+                pass
 
     def setup_kde_wayland(self):
         script_dir = os.path.expanduser("~/.local/share/pc-stats/scripts")
@@ -81,7 +81,7 @@ class PositionHandler:
         lines = [line.removeprefix("js: ") for line in journal.stdout.splitlines() if "," in line]
         if not lines:
             print("Mouse Position Not Found")
-            return (-1, -1)
+            return None
         x, y = lines[-1].split(",")
         return (int(x), int(y))
 
