@@ -1,4 +1,7 @@
-package/
-log.txt
-.wakatime-project
-pyproject.toml
+.venv/
+__pycache__/
+*.pyc
+dist/
+build/
+*.spec
+pyrightconfig.json
