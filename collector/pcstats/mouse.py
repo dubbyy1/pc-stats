@@ -1,15 +1,17 @@
 from .compositor import Compositor, detect_compositor
 
 import os
+import errno
 import subprocess
 from datetime import datetime
 
-from evdev import InputDevice, ecodes, list_devices
+from evdev import InputDevice, InputEvent, ecodes, list_devices
 
 class Mouse:
     def __init__(self):
         self.compositor: Compositor = detect_compositor()
-        self.device: InputDevice|None = self.detect_mouse()
+        self.devices: list[InputDevice] = []
+        self.detect_mouse()
 
         self.position_handler:PositionHandler = PositionHandler(self.compositor)
 
@@ -18,34 +20,58 @@ class Mouse:
         for path in list_devices():
             dev = InputDevice(path)
             capabilities = dev.capabilities()
-            if ecodes.EV_KEY in capabilities:
-                if ecodes.BTN_LEFT not in capabilities[ecodes.EV_KEY]:
-                    continue
-                if ecodes.BTN_RIGHT not in capabilities[ecodes.EV_KEY]:
-                    continue
-                if ecodes.BTN_MIDDLE not in capabilities[ecodes.EV_KEY]:
-                    continue
-            if ecodes.EV_REL in capabilities:
-                if ecodes.REL_X not in capabilities[ecodes.EV_REL]:
-                    continue
-                if ecodes.REL_Y not in capabilities[ecodes.EV_REL]:
-                    continue
+            if ecodes.EV_KEY not in capabilities:
+                continue
+
+            if ecodes.BTN_LEFT not in capabilities[ecodes.EV_KEY]:
+                continue
+            if ecodes.BTN_RIGHT not in capabilities[ecodes.EV_KEY]:
+                continue
+            if ecodes.BTN_MIDDLE not in capabilities[ecodes.EV_KEY]:
+                continue
+
+            if ecodes.EV_REL not in capabilities:
+                continue
+
+            if ecodes.REL_X not in capabilities[ecodes.EV_REL]:
+                continue
+            if ecodes.REL_Y not in capabilities[ecodes.EV_REL]:
+                continue
             valid_mice.append(dev)
 
-        if not valid_mice:
-            return None
-        return valid_mice[0]
+        if valid_mice:
+            if valid_mice != self.devices:
+                for device in valid_mice:
+                    if device not in self.devices:
+                        print(f"Mouse Connected - {device.name}")
+                self.devices = valid_mice
+        else:
+            self.devices = []
 
     def get_position(self) -> tuple[int, int] | None:
         return self.position_handler.get_position()
 
     def poll(self) -> tuple[int,int,str] | None:
-        for event in self.device.read_loop():
-            if event.type == ecodes.EV_KEY and event.value == 1:
-                pos = self.get_position()
-                if pos:
-                    MOUSE_BUTTONS = {ecodes.BTN_LEFT: "LEFT", ecodes.BTN_RIGHT: "RIGHT", ecodes.BTN_MIDDLE: "MIDDLE"}
-                    return (pos[0], pos[1], MOUSE_BUTTONS[event.code])
+        for device in self.devices:
+            event: InputEvent | None = None
+
+            try:
+                event = device.read_one() # get input from mouse
+            except OSError as e:
+                # handle disconnect
+                if e.errno == errno.ENODEV:
+                    self.devices.remove(device)
+                    print(f"Mouse disconnected - {device.name}")
+                else:
+                    raise e
+
+            if event:
+                # filter for clicks, exclu releases
+                if event.type == ecodes.EV_KEY and event.value == 1:
+                    pos = self.get_position()
+                    if pos:
+                        MOUSE_BUTTONS = {ecodes.BTN_LEFT: "LEFT", ecodes.BTN_RIGHT: "RIGHT", ecodes.BTN_MIDDLE: "MIDDLE"}
+                        return (pos[0], pos[1], MOUSE_BUTTONS[event.code])
 
 class PositionHandler:
     def __init__(self, compositor: Compositor):
@@ -99,8 +125,12 @@ class PositionHandler:
         if not lines:
             print("Mouse Position Not Found")
             return None
-        x, y = lines[-1].split(",")
-        return (int(x), int(y))
+        try:
+            x, y = lines[-1].split(",")
+            return (int(x), int(y))
+        except ValueError as e:
+            print(e)
+            return None
 
     def get_position(self) -> tuple[int, int] | None:
         match self.compositor:
