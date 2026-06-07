@@ -20,6 +20,19 @@ class Collector:
             )
             """
         )
+
+        _ = self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS monitors (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        STRING  NOT NULL,
+                x           INTEGER NOT NULL,
+                y           INTEGER NOT NULL,
+                width       INTEGER NOT NULL,
+                height      INTEGER NOT NULL
+            )
+            """
+        )
         self.conn.commit()
 
     def store_clicks(self, buffer:list[tuple[float, int,int,str]]):
@@ -29,5 +42,15 @@ class Collector:
             VALUES (?, ?, ?, ?)
             """,
             buffer
+        )
+        self.conn.commit()
+
+    def store_monitors(self, monitors:list[tuple[str,int,int,int,int]]):
+        _ = self.conn.executemany(
+            """
+            INSERT INTO monitors (name, x, y, width, height)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            monitors
         )
         self.conn.commit()
