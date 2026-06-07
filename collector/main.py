@@ -1,6 +1,7 @@
 from pcstats import Mouse, Collector
 
 import time
+import threading
 
 collector = Collector()
 click_buffer: list[tuple[float, int, int, str]] = []
@@ -15,19 +16,20 @@ def store_click(click: tuple[int, int, str]):
         collector.store_clicks(click_buffer)
         click_buffer = []
 
-def main():
+def clicks(mouse:Mouse):
     mouse = Mouse()
 
-    last_update = 0
+    for click in mouse.test():
+        store_click(click)
+
+def main():
+    mouse = Mouse()
+    threading.Thread(target=clicks, daemon=True, args=(mouse,)).start()
+
     while True:
-        if int(time.time()) % 30 == 0 and last_update != int(time.time()):
-            last_update = int(time.time())
-            mouse.detect_mouse()
+        # more features coming soon
 
-        click = mouse.poll()
-        if click:
-            store_click(click)
-
+        time.sleep(30)
 
 if __name__ == "__main__":
     main()

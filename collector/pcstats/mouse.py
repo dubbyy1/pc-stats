@@ -1,9 +1,13 @@
+import re
+
 from .compositor import Compositor, detect_compositor
 
 import os
 import errno
 import subprocess
+import select
 from datetime import datetime
+from collections.abc import Generator
 
 from evdev import InputDevice, InputEvent, ecodes, list_devices
 
@@ -51,12 +55,44 @@ class Mouse:
     def get_position(self) -> tuple[int, int] | None:
         return self.position_handler.get_position()
 
-    def poll(self) -> tuple[int,int,str] | None:
-        for device in self.devices:
-            event: InputEvent | None = None
+    def _read_all(self):
+        while True:
+            readable_devices, _, _ = select.select(self.devices, [], [], 5)
+            if not readable_devices:
+                self.detect_mouse()
+                continue
+            for device in readable_devices:
+                try:
+                    for event in device.read():
+                        yield event
+                except OSError as e:
+                    # handle disconnect
+                    if e.errno == errno.ENODEV:
+                        self.devices.remove(device)
+                        print(f"Mouse disconnected - {device.name}")
+                    else:
+                        raise e
 
+    def test(self) -> Generator[tuple[int, int, str]]:
+        for event in self._read_all():
+            if event.type == ecodes.EV_KEY and event.value == 1:
+                pos = self.get_position()
+                if pos:
+                    MOUSE_BUTTONS = {ecodes.BTN_LEFT: "LEFT", ecodes.BTN_RIGHT: "RIGHT", ecodes.BTN_MIDDLE: "MIDDLE"}
+                    yield (pos[0], pos[1], MOUSE_BUTTONS[event.code])
+
+    def poll(self) -> tuple[int,int,str] | None:
+        readable_devices, _, _ = select.select(self.devices, [], [], 0) # get input from mouse
+        for device in readable_devices:
+            events: list[InputEvent] = device.read()
+            # filter for clicks, exclude releases
             try:
-                event = device.read_one() # get input from mouse
+                for event in events:
+                    if event.type == ecodes.EV_KEY and event.value == 1:
+                        pos = self.get_position()
+                        if pos:
+                            MOUSE_BUTTONS = {ecodes.BTN_LEFT: "LEFT", ecodes.BTN_RIGHT: "RIGHT", ecodes.BTN_MIDDLE: "MIDDLE"}
+                            return (pos[0], pos[1], MOUSE_BUTTONS[event.code])
             except OSError as e:
                 # handle disconnect
                 if e.errno == errno.ENODEV:
@@ -64,14 +100,6 @@ class Mouse:
                     print(f"Mouse disconnected - {device.name}")
                 else:
                     raise e
-
-            if event:
-                # filter for clicks, exclu releases
-                if event.type == ecodes.EV_KEY and event.value == 1:
-                    pos = self.get_position()
-                    if pos:
-                        MOUSE_BUTTONS = {ecodes.BTN_LEFT: "LEFT", ecodes.BTN_RIGHT: "RIGHT", ecodes.BTN_MIDDLE: "MIDDLE"}
-                        return (pos[0], pos[1], MOUSE_BUTTONS[event.code])
 
 class PositionHandler:
     def __init__(self, compositor: Compositor):
