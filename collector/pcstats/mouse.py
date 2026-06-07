@@ -11,6 +11,7 @@ from datetime import datetime
 from collections.abc import Generator
 
 from evdev import InputDevice, InputEvent, ecodes, list_devices
+from Xlib import display as xdisplay
 
 class Mouse:
     def __init__(self):
@@ -141,9 +142,42 @@ class PositionHandler:
             print(e)
             return None
 
+    def _get_pos_xlib(self):
+        display = xdisplay.Display()
+        root = display.screen().root
+        pos = root.query_pointer()
+        display.close()
+
+        return (pos['root_x'], pos['root_y'])
+
+    # UNTESTED
+    def _get_pos_hyprland(self) -> tuple[int, int] | None:
+        import socket as sock
+        sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+        if not sig:
+            return None
+
+        runtime_dir = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
+        socket_path = f"{runtime_dir}/hypr/{sig}/.socket.sock"
+
+        try:
+            with sock.socket(sock.AF_UNIX, sock.SOCK_STREAM) as s:
+                s.connect(socket_path)
+                s.sendall(b"cursorpos")
+                data = s.recv(64).decode().strip()
+            x, y = data.split(",")
+            return (int(x), int(y))
+        except Exception:
+            return None
+
+
     def get_position(self) -> tuple[int, int] | None:
         match self.compositor:
             case Compositor.KDE_WAYLAND:
                 return self._get_pos_kde_wayland()
+            case Compositor.X11 | Compositor.GNOME_WAYLAND:
+                return self._get_pos_xlib()
+            case Compositor.HYPRLAND:
+                return self._get_pos_hyprland()
             case _:
                 return None
