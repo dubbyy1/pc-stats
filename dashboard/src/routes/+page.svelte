@@ -6,12 +6,13 @@
     let sectionButtonMouse;
     let fileName = $state("");
 
-    const SCREEN_W = 1920 + 1600;
-    const SCREEN_H = 1080;
+    let SCREEN_W = $state(1920);
+    let SCREEN_H = $state(1080);
 
     let canvas;
     let canvasContainer = $state(null);
     let clicks = $state([]);
+    let monitors = $state([]);
 
     async function chooseFile(event) {
         const file = event.target.files[0];
@@ -27,16 +28,29 @@
     }
 
     async function parseFile(db) {
-        const result = db.exec("SELECT id, x, y, button FROM clicks");
-        console.log(result)
+        const monitors_result = db.exec("SELECT id, x, y, width, height FROM monitors");
 
-        const [{ columns, values }] = result;
-        clicks = values.map(row =>
-            Object.fromEntries(columns.map((col, i) => [col, row[i]]))
+        const clicks_result = db.exec("SELECT id, x, y, button FROM clicks");
+
+        const [{ columns: monitors_columns, values: monitors_values }] = monitors_result;
+
+        SCREEN_H = 0;
+        SCREEN_W = 0;
+        for (let monitor of monitors_values) {
+            console.log(monitor);
+            SCREEN_W += monitor[3];
+            SCREEN_H = Math.max(SCREEN_H, monitor[4]);
+        }
+        console.log(SCREEN_W, SCREEN_H);
+
+        monitors = monitors_values.map(row =>
+            Object.fromEntries(monitors_columns.map((col, i) => [col, row[i]]))
         );
-        // drawClicks();
-        console.log(clicks[0]);
 
+        const [{ columns: clicks_columns, values: clicks_values }] = clicks_result;
+        clicks = clicks_values.map(row =>
+            Object.fromEntries(clicks_columns.map((col, i) => [col, row[i]]))
+        );
     }
 
     // function drawClicks() {
@@ -116,10 +130,22 @@
         <div class="page-title">Mouse</div>
         <div class="heatmap">
             <span>Heatmap</span>
-            <div class="canvas-container" bind:this={canvasContainer}>
+            <div class="canvas-container" style="aspect-ratio: {SCREEN_W} / {SCREEN_H};" bind:this={canvasContainer}>
             <div class= "canvas" bind:this={canvas}>
-                <div class="monitor" style="width: calc({(1920 / SCREEN_W) * 100}%); height: calc({(1080 / SCREEN_H) * 100}%);"></div>
-                <div class="monitor" style="width: calc({(1600 / SCREEN_W) * 100}%); height: calc({(900 / SCREEN_H) * 100}%);"></div>
+                {#each monitors as {id, x, y, width, height} (id)}
+                    <div
+                        class="monitor"
+                        style="
+                        width: calc({(width / SCREEN_W) * 100}%);
+                        height: calc({(height / SCREEN_H) * 100}%);
+                        left: calc({(x / SCREEN_W) * 100}%);
+                        top: calc({(y / SCREEN_H) * 100}%);
+                        ">
+                    </div>
+                    <script>
+                        console.log({width}, {height});
+                    </script>
+                {/each}
                 {#each clicks as {id, x, y, button} (id)}
                     {#if button == "LEFT"}
                         <div
@@ -188,11 +214,11 @@
     .heatmap {
         display: flex;
         flex-direction: column;
-        gap: 0.1rem;
+        /*gap: 0.1rem;*/
         align-self: center;
 
         width: 100%;
-        padding: 0.5rem 1rem 1rem 1rem;
+        padding: 0.75rem 1rem 1rem 1rem;
         border: 1px solid #3d444d;
         border-radius:  0.5rem;
 
@@ -203,7 +229,6 @@
 
     .canvas-container {
         margin-top: 0.5rem;
-        aspect-ratio: 3520 / 1080;
     }
 
     .canvas {
@@ -217,6 +242,7 @@
         height:100%;
     }
     .monitor {
+        position: absolute;
         border: 1px solid #3d444d;
         background-color: #151B23;
         border-radius: 0.5rem;
