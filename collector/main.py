@@ -43,18 +43,26 @@ def main():
 
     collector.store_monitors(get_monitors())
 
-    while True:
-        # more features coming soon
+    try:
+        while True:
+            # more features coming soon
 
-        while not click_queue.empty():
-            ts, x, y, button = click_queue.get()
-            click_buffer.append((ts, x, y, button))
-        if len(click_buffer) >= 10:
-            print("Storing Clicks...")
+            while not click_queue.empty():
+                ts, x, y, button = click_queue.get()
+                click_buffer.append((ts, x, y, button))
+            if len(click_buffer) >= 10:
+                print("Storing Clicks...")
+                collector.store_clicks(click_buffer)
+                click_buffer = []
+
+            time.sleep(60)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if click_buffer:
+            print("Storing buffered clicks...")
             collector.store_clicks(click_buffer)
-            click_buffer = []
-
-        time.sleep(60)
+        collector.close()
 
 if __name__ == "__main__":
     main()
