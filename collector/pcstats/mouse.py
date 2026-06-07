@@ -3,6 +3,7 @@ import re
 from .compositor import Compositor, detect_compositor
 
 import os
+from time import time
 import errno
 import subprocess
 import select
@@ -73,33 +74,13 @@ class Mouse:
                     else:
                         raise e
 
-    def test(self) -> Generator[tuple[int, int, str]]:
+    def poll(self) -> Generator[tuple[float, int, int, str]]:
         for event in self._read_all():
             if event.type == ecodes.EV_KEY and event.value == 1:
                 pos = self.get_position()
                 if pos:
                     MOUSE_BUTTONS = {ecodes.BTN_LEFT: "LEFT", ecodes.BTN_RIGHT: "RIGHT", ecodes.BTN_MIDDLE: "MIDDLE"}
-                    yield (pos[0], pos[1], MOUSE_BUTTONS[event.code])
-
-    def poll(self) -> tuple[int,int,str] | None:
-        readable_devices, _, _ = select.select(self.devices, [], [], 0) # get input from mouse
-        for device in readable_devices:
-            events: list[InputEvent] = device.read()
-            # filter for clicks, exclude releases
-            try:
-                for event in events:
-                    if event.type == ecodes.EV_KEY and event.value == 1:
-                        pos = self.get_position()
-                        if pos:
-                            MOUSE_BUTTONS = {ecodes.BTN_LEFT: "LEFT", ecodes.BTN_RIGHT: "RIGHT", ecodes.BTN_MIDDLE: "MIDDLE"}
-                            return (pos[0], pos[1], MOUSE_BUTTONS[event.code])
-            except OSError as e:
-                # handle disconnect
-                if e.errno == errno.ENODEV:
-                    self.devices.remove(device)
-                    print(f"Mouse disconnected - {device.name}")
-                else:
-                    raise e
+                    yield (time(), pos[0], pos[1], MOUSE_BUTTONS[event.code])
 
 class PositionHandler:
     def __init__(self, compositor: Compositor):
