@@ -1,17 +1,18 @@
 <script>
     import initSqlJs from 'sql.js';
+    import { tick } from 'svelte'
+
     let fileInput;
     let importTextButton;
     let importIconButton;
     let sectionButtonMouse;
     let fileName = $state("");
 
-    let SCREEN_W = $state(1920);
-    let SCREEN_H = $state(1080);
+    let SCREEN_W = $state(0);
+    let SCREEN_H = $state(0);
 
     let canvas;
     let canvasContainer = $state(null);
-    let clicks = $state([]);
     let monitors = $state([]);
 
     async function chooseFile(event) {
@@ -29,10 +30,11 @@
 
     async function parseFile(db) {
         const monitors_result = db.exec("SELECT id, x, y, width, height FROM monitors");
-
-        const clicks_result = db.exec("SELECT id, x, y, button FROM clicks");
-
         const [{ columns: monitors_columns, values: monitors_values }] = monitors_result;
+
+        monitors = monitors_values.map(row =>
+            Object.fromEntries(monitors_columns.map((col, i) => [col, row[i]]))
+        );
 
         SCREEN_H = 0;
         SCREEN_W = 0;
@@ -41,72 +43,57 @@
             SCREEN_W += monitor[3];
             SCREEN_H = Math.max(SCREEN_H, monitor[4]);
         }
-        console.log(SCREEN_W, SCREEN_H);
 
-        monitors = monitors_values.map(row =>
-            Object.fromEntries(monitors_columns.map((col, i) => [col, row[i]]))
-        );
-
+        const clicks_result = db.exec("SELECT id, timestamp, x, y, button FROM clicks");
         const [{ columns: clicks_columns, values: clicks_values }] = clicks_result;
-        clicks = clicks_values.map(row =>
-            Object.fromEntries(clicks_columns.map((col, i) => [col, row[i]]))
+
+        let clicks = clicks_values.map((row) =>
+            Object.fromEntries(clicks_columns.map( (col, i) => [col, row[i]] ))
         );
+
+        await tick();
+
+        drawClicks(clicks);
     }
 
-    // function drawClicks() {
-    //   let clickElements = [];
+    function drawMonitors(monitors) {
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        let scale = SCREEN_W / canvas.getBoundingClientRect().width;
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = "#151B23";
+        ctx.strokeStyle = "#3d444d";
+        ctx.lineWidth = 5;
+        for (const { x, y, width, height } of monitors) {
+            ctx.beginPath();
+            ctx.roundRect(x, y, width, height, 0.5 * rem * scale);
+            ctx.fill();
+            ctx.stroke();
+            ctx.closePath();
+        }
+    }
 
-    //   for (const { x, y } of clicks) {
-    //     const click = document.createElement('div');
-    //     click.className = "click"
-    //     click.style.left = `${x}px`;
-    //     click.style.top = `${y}px`;
+    // border: 1px solid #3d444d;
+    // background-color: #151B23;
+    async function drawClicks(clicks) {
+        var ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawMonitors(monitors);
 
-    //     canvas.appendChild(click);
-    //   }
-    // }
+        const buttons = new Map([
+            ['LEFT', '#4493f81a'],
+            ['MIDDLE', '#f1e05a33'],
+            ['RIGHT', '#ff3e0033'],
+        ])
 
-    // function drawHeatmap() {
-    //     const CELL_SIZE = 8;      // how many screen pixels per cell
-    //     const SCREEN_W = 1920 + 1600;    // change to your resolution
-    //     const SCREEN_H = 1080;
+        for (const { x, y, button } of clicks.slice(i - 100, i)) {
+            ctx.fillStyle = buttons.get(button);
 
-    //     const cols = Math.ceil(SCREEN_W / CELL_SIZE);
-    //     const rows = Math.ceil(SCREEN_H / CELL_SIZE);
-
-    //     // 1. Build a grid and count clicks per cell
-    //     const grid = Array.from({ length: rows }, () => new Array(cols).fill(0));
-    //     for (const { x, y } of clicks) {
-    //         const col = Math.floor(x / CELL_SIZE);
-    //         const row = Math.floor(y / CELL_SIZE);
-    //         if (row >= 0 && row < rows && col >= 0 && col < cols) {
-    //             grid[row][col]++;
-    //         }
-    //     }
-
-    //     // 2. Find the highest count so we can normalise
-    //     const max = grid.reduce((m, row) => Math.max(m, ...row), 0);
-    //     if (max === 0) return;
-
-    //     // 3. Draw each cell as a coloured rectangle
-    //     const ctx = canvas.getContext('2d');
-    //     canvas.width = cols;
-    //     canvas.height = rows;
-    //     ctx.clearRect(0, 0, cols, rows);
-
-    //     for (let row = 0; row < rows; row++) {
-    //         for (let col = 0; col < cols; col++) {
-    //             const count = grid[row][col];
-    //             if (count === 0) continue;
-
-    //             const t = count / max;               // 0 = cold, 1 = hot
-    //             const hue = (1 - t) * 240;           // 240 = blue, 0 = red
-    //             const alpha = 0.2 + t * 1;
-    //             ctx.fillStyle = `hsla(${hue}, 100%, 50%, ${alpha})`;
-    //             ctx.fillRect(col, row, 1, 1);
-    //         }
-    //     }
-    // }
+            ctx.beginPath();
+            ctx.arc(x, y, 10, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.closePath();
+        }
+    }
 </script>
 
 <main class="container">
@@ -130,51 +117,23 @@
         <div class="page-title">Mouse</div>
         <div class="heatmap">
             <span>Heatmap</span>
-            <div class="canvas-container" style="aspect-ratio: {SCREEN_W} / {SCREEN_H};" bind:this={canvasContainer}>
-            <div class= "canvas" bind:this={canvas}>
-                {#each monitors as {id, x, y, width, height} (id)}
+            <div class="canvas-container" bind:this={canvasContainer}>
+                <!-- {#each monitors as {id, x, y, width, height} (id)}
                     <div
                         class="monitor"
                         style="
-                        width: calc({(width / SCREEN_W) * 100}%);
+                        width:  calc({(width / SCREEN_W) * 100}%);
                         height: calc({(height / SCREEN_H) * 100}%);
-                        left: calc({(x / SCREEN_W) * 100}%);
-                        top: calc({(y / SCREEN_H) * 100}%);
+                        left:   calc({(x / SCREEN_W) * 100}%);
+                        top:    calc({(y / SCREEN_H) * 100}%);
                         ">
                     </div>
                     <script>
                         console.log({width}, {height});
                     </script>
-                {/each}
-                {#each clicks as {id, x, y, button} (id)}
-                    {#if button == "LEFT"}
-                        <div
-                            class="click {button}"
-                            id={`click-${id}`}
-                            style="left: calc({(x / SCREEN_W) * 100}% - 5px); top: calc({(y / SCREEN_H) * 100}% - 5px);">
-                        </div>
-                    {/if}
-                {/each}
-                {#each clicks as {id, x, y, button} (id)}
-                    {#if button == "RIGHT"}
-                        <div
-                            class="click {button}"
-                            id={`click-${id}`}
-                            style="left: calc({(x / SCREEN_W) * 100}% - 5px); top: calc({(y / SCREEN_H) * 100}% - 5px);">
-                        </div>
-                    {/if}
-                {/each}
-                {#each clicks as {id, x, y, button} (id)}
-                    {#if button == "MIDDLE"}
-                        <div
-                            class="click {button}"
-                            id={`click-${id}`}
-                            style="left: calc({(x / SCREEN_W) * 100}% - 5px); top: calc({(y / SCREEN_H) * 100}% - 5px);">
-                        </div>
-                    {/if}
-                {/each}
+                {/each} -->
+            <canvas style="aspect-ratio: {SCREEN_W} / {SCREEN_H};" width={SCREEN_W} height={SCREEN_H} bind:this={canvas}></canvas>
             </div>
-        </div>
         </div>
     </div>
 </main>
@@ -189,7 +148,7 @@
     }
 
     main {
-        overflow: hidden;
+        /*overflow: hidden;*/
         background-color: #0D1117;
         color: #ffffff;
 
@@ -231,42 +190,30 @@
         margin-top: 0.5rem;
     }
 
-    .canvas {
+    canvas {
         position: relative;
 
         display: flex;
         align-items: end;
         flex-direction: row;
 
-        width:100%;
-        height:100%;
+        max-width:100%;
+        max-height:100%;
     }
     .monitor {
-        position: absolute;
+        position: relative;
         border: 1px solid #3d444d;
         background-color: #151B23;
         border-radius: 0.5rem;
     }
 
-    .click {
+    /*.click {
         background-color: #ffffff;
         position: absolute;
         border-radius: 100px;
         width: 10px;
         height: 10px;
-    }
-    .click.LEFT {
-        background-color: #4493f8;
-        opacity: 0.1;
-    }
-    .click.RIGHT {
-        background-color: #ff3e00;
-        opacity: 0.2;
-    }
-    .click.MIDDLE {
-        background-color: #f1e05a;
-        opacity: 0.2;
-    }
+    }*/
 
     .import-data {
         display: flex;
