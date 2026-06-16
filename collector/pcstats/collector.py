@@ -24,7 +24,7 @@ class Collector:
         _ = self.conn.execute(
             """
             CREATE TABLE IF NOT EXISTS monitors (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY,
                 name        STRING  NOT NULL,
                 x           INTEGER NOT NULL,
                 y           INTEGER NOT NULL,
@@ -36,7 +36,9 @@ class Collector:
         self.conn.commit()
 
     def close(self):
+        print("Closing DB...")
         self.conn.close()
+        print("DB Closed.")
 
     def store_clicks(self, buffer:list[tuple[float, int,int,str]]):
         _ = self.conn.executemany(
@@ -48,12 +50,13 @@ class Collector:
         )
         self.conn.commit()
 
-    def store_monitors(self, monitors:list[tuple[str,int,int,int,int]]):
+    # monitor = (id, name, x, y, width, height)
+    def store_monitors(self, monitors:list[tuple[int,str,int,int,int,int]]):
         _ = self.conn.execute("DELETE FROM monitors")
         _ = self.conn.executemany(
             """
-            INSERT INTO monitors (name, x, y, width, height)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO monitors (id, name, x, y, width, height)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             monitors
         )
