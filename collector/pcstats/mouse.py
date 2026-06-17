@@ -21,6 +21,9 @@ class Mouse:
 
         self.position_handler:PositionHandler = PositionHandler(self.compositor)
 
+    def get_names(self):
+        return [d.name for d in self.devices]
+
     def detect_mouse(self):
         valid_mice = []
         for path in list_devices():

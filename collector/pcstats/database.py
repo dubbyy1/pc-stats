@@ -1,7 +1,7 @@
 import os
 import sqlite3
 
-class Collector:
+class Database:
     def __init__(self):
         self.path:str = os.path.expanduser("~/.local/share/pc-stats")
         os.makedirs(self.path, exist_ok=True)
