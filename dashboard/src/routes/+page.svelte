@@ -145,19 +145,86 @@
     });
 
     async function loadDbFromUrl(dbUrl) {
-	fileName = dbUrl.split('/').pop() ?? 'remote.db';
+     	fileName = dbUrl.split('/').pop() ?? 'remote.db';
+     	importTextButton.style.display = 'none';
+        importIconButton.style.display = 'inline';
 
-	const SQL = await initSqlJs({ locateFile: () => '/sql-wasm.wasm' });
-	const response = await fetch(dbUrl);
+     	const SQL = await initSqlJs({ locateFile: () => '/sql-wasm.wasm' });
+     	const response = await fetch(dbUrl);
 
-	if (!response.ok) {
-		throw new Error(`Failed to load DB: ${response.status}`);
-	}
+     	if (!response.ok) {
+      		throw new Error(`Failed to load DB: ${response.status}`);
+     	}
 
-	const buf = await response.arrayBuffer();
-	const db = new SQL.Database(new Uint8Array(buf));
+     	const buf = await response.arrayBuffer();
+     	const db = new SQL.Database(new Uint8Array(buf));
 
-	parseFile(db);
+     	parseFile(db);
+    }
+
+
+    $effect(() => {
+	loadCachedDbOnStartup();
+    });
+
+    const DB_CACHE_NAME = 'pc-stats-cache';
+    const DB_STORE_NAME = 'files';
+    const DB_KEY = 'latest-db';
+
+    let loadedCache = false;
+
+    function openCacheDb() {
+     	return new Promise((resolve, reject) => {
+      		const request = indexedDB.open(DB_CACHE_NAME, 1);
+
+      		request.onupgradeneeded = () => {
+     			request.result.createObjectStore(DB_STORE_NAME);
+      		};
+
+      		request.onsuccess = () => resolve(request.result);
+      		request.onerror = () => reject(request.error);
+     	});
+    }
+
+    async function loadDbFromCache() {
+     	const cacheDb = await openCacheDb();
+
+     	return new Promise((resolve, reject) => {
+      		const tx = cacheDb.transaction(DB_STORE_NAME, 'readonly');
+      		const request = tx.objectStore(DB_STORE_NAME).get(DB_KEY);
+
+      		request.onsuccess = () => resolve(request.result);
+      		request.onerror = () => reject(request.error);
+     	});
+    }
+
+    async function loadCachedDbOnStartup() {
+     	if (loadedCache) return;
+     	loadedCache = true;
+
+     	const buf = await loadDbFromCache();
+
+     	if (!buf) return;
+
+     	fileName = 'cache';
+     	importTextButton.style.display = 'none';
+     	importIconButton.style.display = 'inline';
+
+     	const SQL = await initSqlJs({ locateFile: () => '/sql-wasm.wasm' });
+     	const db = new SQL.Database(new Uint8Array(buf));
+
+     	parseFile(db);
+    }
+
+    async function saveDbToCache(buffer) {
+     	const cacheDb = await openCacheDb();
+
+     	return new Promise((resolve, reject) => {
+      		const tx = cacheDb.transaction(DB_STORE_NAME, 'readwrite');
+      		tx.objectStore(DB_STORE_NAME).put(buffer, DB_KEY);
+      		tx.oncomplete = resolve;
+      		tx.onerror = () => reject(tx.error);
+     	});
     }
 
     async function chooseFile(event) {
@@ -168,6 +235,9 @@
 
         const SQL = await initSqlJs({ locateFile: () => '/sql-wasm.wasm' });
         const buf = await file.arrayBuffer();
+
+        await saveDbToCache(buf);
+
         const db = new SQL.Database(new Uint8Array(buf));
         parseFile(db);
     }
