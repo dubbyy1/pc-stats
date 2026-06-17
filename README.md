@@ -2,7 +2,7 @@
 
 PC Stats records mouse click activity on Linux and visualises it in a browser dashboard. The collector runs locally, writes click and monitor data to a SQLite database, and the dashboard reads that database to show heatmaps and charts.
 
-![Dashboard Screenshot](assets/dashboard.png)
+![Dashboard Screenshot](images/dashboard.png)
 
 ## What It Tracks
 
@@ -69,7 +69,7 @@ dashboard/build
 
 ## Collector - `collector/`
 
-![Collector Screenshot](assets/collector.png)
+![Collector Screenshot](images/collector.png)
 
 The collector runs in the background to collect the data. It also has a small status window.
 
