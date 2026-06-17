@@ -1,8 +1,8 @@
 # PC Stats
 
-PC Stats records mouse click activity on Linux and visualises it in a browser dashboard. The collector runs locally, writes click and monitor data to a SQLite database, and the dashboard reads that database to show heatmaps and charts.
-
 ![Dashboard Screenshot](images/dashboard.png)
+
+PC Stats records mouse click activity on Linux and visualises it in a browser dashboard. The collector runs locally, writes click and monitor data to a SQLite database, and the dashboard reads that database to show heatmaps and charts.
 
 ## What It Tracks
 
