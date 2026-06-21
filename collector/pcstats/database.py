@@ -143,4 +143,5 @@ class Database:
         last_active_window = self.conn.execute("SELECT name FROM windows WHERE pid = ?", (snapshot["active_pid"],)).fetchone()[0]
         return {
             "last_active_window": last_active_window,
+            "window_snapshots": window_snapshot_id,
         }

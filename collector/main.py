@@ -62,11 +62,13 @@ def ui():
     clicks_stored = QLabel("Clicks stored: 0")
     clicks_pending = QLabel("Clicks pending: 0")
     mouse_name = QLabel("Mouse: unkown")
+    window_snapshots = QLabel("Window snapshots taken: 0")
     active_window = QLabel("Last active window: unkown")
     layout.addWidget(last_write)
     layout.addWidget(clicks_pending)
     layout.addWidget(clicks_stored)
     layout.addWidget(mouse_name)
+    layout.addWidget(window_snapshots)
     layout.addWidget(active_window)
 
     stop = QPushButton("Stop")
@@ -83,6 +85,7 @@ def ui():
         window_data = db.store_windows(windows.get_windows())
         if window_data:
             active_window.setText(f"Last active window: {window_data['last_active_window']}")
+            window_snapshots.setText(f"Window snapshots taken: {window_data['window_snapshots']}")
 
     def refresh():
         clicks_pending.setText(f"Clicks pending: {click_queue.qsize()}")
@@ -109,6 +112,7 @@ def main():
     print()
 
     drain_clicks()
+    db.store_windows(windows.get_windows())
     db.close()
 
     sys.exit(res)
