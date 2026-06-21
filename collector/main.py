@@ -1,7 +1,6 @@
-from pcstats import Mouse, Database
+from pcstats import Mouse, Database, Windows
 
 import sys
-import signal
 import threading
 import time
 import queue
@@ -10,9 +9,10 @@ from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QPushButton
 
 mouse = Mouse()
+windows = Windows()
+db = Database()
 click_queue: queue.Queue[tuple[float, int, int, str]] = queue.Queue()
 click_buffer: list[tuple[float, int, int, str]] = []
-db = Database()
 
 def get_monitors() -> list[tuple[int, str, int, int, int, int]]:
     app = QGuiApplication(sys.argv)
@@ -35,19 +35,19 @@ def collect_clicks(m: Mouse, queue: queue.Queue[tuple[float, int, int, str]]):
         queue.put(click)
 
 def drain_clicks():
-    clicks = click_queue.qsize()
+    click_count = click_queue.qsize()
     while not click_queue.empty():
         ts, x, y, button = click_queue.get()
         click_buffer.append((ts, x, y, button))
 
     if not click_buffer:
-        return
+        return 0
 
-    print(f"Storing {clicks} Clicks...")
+    print(f"Storing {click_count} Clicks...")
     db.store_clicks(click_buffer)
     click_buffer.clear()
 
-    return clicks
+    return click_count
 
 def ui():
     app = QApplication([])
@@ -62,10 +62,12 @@ def ui():
     clicks_stored = QLabel("Clicks stored: 0")
     clicks_pending = QLabel("Clicks pending: 0")
     mouse_name = QLabel("Mouse: unkown")
+    active_window = QLabel("Last active window: unkown")
     layout.addWidget(last_write)
     layout.addWidget(clicks_pending)
     layout.addWidget(clicks_stored)
     layout.addWidget(mouse_name)
+    layout.addWidget(active_window)
 
     stop = QPushButton("Stop")
     layout.addWidget(stop)
@@ -73,7 +75,14 @@ def ui():
 
     def update():
         last_write.setText(f"Last write: {time.strftime("%H:%M:%S")}")
-        clicks_stored.setText(f"Clicks stored: {drain_clicks()}")
+
+        total_clicks = int(clicks_stored.text().split(" ")[-1])
+        total_clicks += drain_clicks()
+        clicks_stored.setText(f"Clicks stored: {total_clicks}")
+
+        window_data = db.store_windows(windows.get_windows())
+        if window_data:
+            active_window.setText(f"Last active window: {window_data['last_active_window']}")
 
     def refresh():
         clicks_pending.setText(f"Clicks pending: {click_queue.qsize()}")
@@ -88,10 +97,11 @@ def ui():
     refresh_timer.start(100)
 
     window.show()
+    update()
 
     return(app.exec())
 
-if __name__ == "__main__":
+def main():
     threading.Thread(target=collect_clicks, daemon=True, args=(mouse, click_queue)).start()
     db.store_monitors(get_monitors())
 
@@ -102,3 +112,7 @@ if __name__ == "__main__":
     db.close()
 
     sys.exit(res)
+
+if __name__ == "__main__":
+    # windows.test()
+    main()

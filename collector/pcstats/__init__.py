@@ -1,3 +1,4 @@
 from .mouse import Mouse
+from .windows import Windows
 from .compositor import Compositor, detect_compositor
-from .collector import Collector
+from .database import Database

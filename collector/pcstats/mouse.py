@@ -1,5 +1,3 @@
-import re
-
 from .compositor import Compositor, detect_compositor
 
 import os
@@ -10,7 +8,7 @@ import select
 from datetime import datetime
 from collections.abc import Generator
 
-from evdev import InputDevice, InputEvent, ecodes, list_devices
+from evdev import InputDevice, ecodes, list_devices
 from Xlib import display as xdisplay
 
 class Mouse:
@@ -104,12 +102,12 @@ class PositionHandler:
         with open(path, "w") as f:
             _ = f.write((
                 "const pos = workspace.cursorPos;\n"
-                "print(pos.x.toString() + ',' + pos.y.toString());\n"
+                "print('mouse:', pos.x.toString() + ',' + pos.y.toString());\n"
             ))
 
     def _get_pos_kde_wayland(self):
         script = os.path.expanduser("~/.local/share/pc-stats/scripts/mouse_pos.js")
-        now = datetime.now().strftime("%H:%M:%S")
+        now = datetime.fromtimestamp(time() - 1).strftime("%H:%M:%S")
 
         result = subprocess.run(
             ["dbus-send", "--print-reply", "--dest=org.kde.KWin",
@@ -134,7 +132,7 @@ class PositionHandler:
             ["journalctl", "_COMM=kwin_wayland", "-o", "cat", "--since", now],
             capture_output=True, text=True,
         )
-        lines = [line.removeprefix("js: ") for line in journal.stdout.splitlines() if "," in line]
+        lines = [line.removeprefix("js: mouse: ") for line in journal.stdout.splitlines() if "mouse: " in line]
         if not lines:
             print("Mouse Position Not Found")
             return None
