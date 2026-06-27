@@ -2,7 +2,7 @@
 
 ![Dashboard Screenshot](images/dashboard.png)
 
-PC Stats records mouse click activity on Linux and visualises it in a browser dashboard. The collector runs locally, writes click and monitor data to a SQLite database, and the dashboard reads that database to show heatmaps and charts.
+PC Stats records mouse click and window activity on Linux and visualises it in a browser dashboard. The collector runs locally, writes data to a SQLite database, and the dashboard reads that database to show heatmaps, charts, and app usage statistics.
 
 ## What It Tracks
 
@@ -10,6 +10,9 @@ PC Stats records mouse click activity on Linux and visualises it in a browser da
 - Click timestamp
 - Click button: left, right, or middle
 - Current monitor layout and monitor names
+- Open application windows
+- Active app and current desktop/workspace
+- Window position and size snapshots
 
 The collector writes data to:
 
@@ -17,10 +20,18 @@ The collector writes data to:
 ~/.local/share/pc-stats/stats.db
 ```
 
+Collector settings are stored at:
+
+```bash
+~/.local/share/pc-stats/config.yaml
+```
+
 The database contains:
 
 - `clicks(id, timestamp, x, y, button)`
 - `monitors(id, name, x, y, width, height)`
+- `window_snapshots(id, timestamp, active, current_desktop)`
+- `windows(ssid, name, pid, desktop, x, y, width, height)`
 
 ## Dashboard - `dashboard/`
 
@@ -30,7 +41,15 @@ The hosted dashboard is available at:
 https://pc-stats.dubbyy.com
 ```
 
-Use **Import Data** and select your `stats.db` file. An example database is included at:
+Use **Import Data** and select your `stats.db` file. The dashboard runs in the browser using `sql.js`; imported databases are cached locally in the browser so the last imported file can be reopened automatically.
+
+You can also load a database URL with the `db` query parameter:
+
+```text
+https://pc-stats.dubbyy.com?db=https://example.com/stats.db
+```
+
+An example database is included at:
 
 ```text
 examples/stats.db
@@ -45,6 +64,10 @@ The dashboard currently includes:
 - Monitor breakdown chart
 - Hourly activity chart
 - Daily activity chart
+- Windows section
+- App frequency, focus, and screen dominance statistics
+- Window geometry visualisation
+- Desktop/workspace breakdown
 
 ### Running The Dashboard Locally
 
@@ -73,6 +96,12 @@ dashboard/build
 
 The collector runs in the background to collect the data. It also has a small status window.
 
+The status window shows pending/stored clicks, the current mouse device, the last active app, and the number of window snapshots taken. It also includes:
+
+- Snapshot interval setting
+- Pause/resume tracking
+- Stop button
+
 ### Platform Support
 
 Due to the low-level nature of the input monitoring, the collector is Linux only.
@@ -83,7 +112,10 @@ Due to the low-level nature of the input monitoring, the collector is Linux only
 | X11 | Supported |
 | GNOME Wayland | Partial |
 | Hyprland | Partial |
+| Sway | Partial |
 | Other | Unsupported |
+
+KDE Wayland uses KWin scripting for window data. X11 uses Xlib/EWMH window properties. Hyprland uses `hyprctl`. Sway uses `swaymsg`. GNOME Wayland has limited support because global window information generally requires a GNOME Shell extension.
 
 ### First-Time Setup
 
@@ -95,7 +127,7 @@ sudo usermod -aG input $USER
 
 Log out and back in after running that command.
 
-Some systems may also require `python-xlib` and Qt/PySide runtime dependencies for source builds.
+Some systems may also require `python-xlib`, PyYAML, and Qt/PySide runtime dependencies for source builds.
 
 ### Running From Source
 
