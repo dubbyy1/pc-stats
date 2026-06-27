@@ -656,7 +656,7 @@
         </div>
     </div>
     <div class="info-box">
-        <span style="margin-bottom: 1rem">App Dominance</span>
+        <span style="margin-bottom: 1rem">Screen Dominance</span>
         <div class="progress-container">
             <div class="progress-column">
                 {#each dominanceApps as app (app.name)}
