@@ -595,7 +595,7 @@
     <div class="info-box">
         <span>Most Dominant App</span>
         <span style="font-size: 2.2rem; font-weight: normal">{dominantApp?.name ?? 'No data'}</span>
-        <span style="color: #8b949e; font-weight: normal">{dominantApp?.dominance ?? 0}% of monitor</span>
+        <span style="color: #8b949e; font-weight: normal">{dominantApp?.dominance ?? 0}% of monitor{monitors.length > 1 ? "s" : ""}</span>
     </div>
     <div class="info-box">
         <span>Most Utilised App</span>
