@@ -249,9 +249,184 @@
 
     let frequencyApps = $derived(appSort('frequency', appInfo));
     let focusApps = $derived(appSort('focus', appInfo));
-    let dominantApp = $derived(appSort('dominance', appInfo)[0]);
+    let dominanceApps = $derived(appSort('dominance', appInfo));
+    let dominantApp = $derived(dominanceApps[0]);
     let idleApp = $derived(appSort('idle', appInfo)[0]);
     let idleAppCount = $derived(windowStats.appCounts[idleApp?.name] ?? { present: 0, focused: 0 });
+    let utilisedApp = $derived(appSort('idle', appInfo)[appSort('idle', appInfo).length - 1]);
+    let utilisedAppCount = $derived(windowStats.appCounts[utilisedApp?.name] ?? { present: 0, focused: 0 });
+
+    let selectedDesktop = $state(null);
+    let selectedGeometryApp = $state('');
+
+    let desktopIds = $derived.by(() => {
+        const seen = {};
+
+        for (const snap of filteredSnapshots) {
+            if (snap.current_desktop !== undefined && snap.current_desktop !== null) {
+                seen[snap.current_desktop] = true;
+            }
+        }
+
+        for (const snap of filteredSnapshots) {
+            const snapshotWindows = windowsBySnapshot[snap.id] ?? [];
+            for (const win of snapshotWindows) {
+                if (win.desktop !== undefined && win.desktop !== null) {
+                    seen[win.desktop] = true;
+                }
+            }
+        }
+
+        return Object.keys(seen).sort((a, b) => Number(a) - Number(b));
+    });
+
+    $effect(() => {
+        if (desktopIds.length === 0) {
+            selectedDesktop = null;
+            selectedGeometryApp = '';
+            return;
+        }
+
+        if (selectedDesktop === null || !desktopIds.includes(String(selectedDesktop))) {
+            selectedDesktop = desktopIds[0];
+        }
+    });
+
+    let monitorBounds = $derived.by(() => {
+        if (monitors.length === 0) {
+            return { x: 0, y: 0, width: 1, height: 1 };
+        }
+
+        const minX = Math.min(...monitors.map(monitor => monitor.x));
+        const minY = Math.min(...monitors.map(monitor => monitor.y));
+        const maxX = Math.max(...monitors.map(monitor => monitor.x + monitor.width));
+        const maxY = Math.max(...monitors.map(monitor => monitor.y + monitor.height));
+
+        return {
+            x: minX,
+            y: minY,
+            width: Math.max(maxX - minX, 1),
+            height: Math.max(maxY - minY, 1)
+        };
+    });
+
+    const GEOMETRY_BUCKET = 1;
+
+    function bucketValue(value) {
+        return Math.round(value / GEOMETRY_BUCKET) * GEOMETRY_BUCKET;
+    }
+
+    function colorForName(name) {
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) {
+            hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+        }
+        return `hsl(${Math.abs(hash) % 360}, 80%, 60%)`;
+    }
+
+    let geometryData = $derived.by(() => {
+        if (selectedDesktop === null) {
+            return { apps: [], byApp: {}, maxCount: 0 };
+        }
+
+        const byApp = {};
+        let maxCount = 0;
+
+        for (const snap of filteredSnapshots) {
+            const snapshotWindows = windowsBySnapshot[snap.id] ?? [];
+
+            for (const win of snapshotWindows) {
+                if (!win.name) continue;
+                // if (String(win.desktop) !== String(selectedDesktop)) continue;
+                if (win.width <= 0 || win.height <= 0) continue;
+
+                const geometry = {
+                    x: bucketValue(win.x),
+                    y: bucketValue(win.y),
+                    width: Math.max(bucketValue(win.width), GEOMETRY_BUCKET),
+                    height: Math.max(bucketValue(win.height), GEOMETRY_BUCKET)
+                };
+                const key = `${geometry.x},${geometry.y},${geometry.width},${geometry.height},${win.desktop}`;
+
+                byApp[win.name] ??= { name: win.name, total: 0, positionsByKey: {} };
+                byApp[win.name].total++;
+                byApp[win.name].positionsByKey[key] ??= { ...geometry, desktop: win.desktop, count: 0 };
+                byApp[win.name].positionsByKey[key].count++;
+                maxCount = Math.max(maxCount, byApp[win.name].positionsByKey[key].count);
+            }
+        }
+
+        const apps = Object.values(byApp)
+            .map(app => {
+                const positions = Object.keys(app.positionsByKey)
+                    .sort((a, b) => app.positionsByKey[b].count - app.positionsByKey[a].count);
+
+                return {
+                    name: app.name,
+                    total: app.total,
+                    desktop: new Map(Object.entries(app.positionsByKey)).get(positions[0]).desktop,
+                    positions: Object.values(app.positionsByKey),
+                    common: app.positionsByKey[positions[0]]
+                };
+            })
+            .filter(app => app.common)
+            .sort((a, b) => b.total - a.total);
+
+        return { apps, byApp, maxCount };
+    });
+
+    let geometryApps = $derived(geometryData.apps);
+    let geometryOptionApps = $derived([...windowNames].sort((a, b) => a.localeCompare(b)));
+    let selectedGeometry = $derived(
+        selectedGeometryApp ? geometryApps.find(app => app.name === selectedGeometryApp) : null
+    );
+
+    $effect(() => {
+        if (selectedGeometryApp && !geometryOptionApps.includes(selectedGeometryApp)) {
+            selectedGeometryApp = '';
+        }
+    });
+
+    let visibleGeometryPositions = $derived.by(() => {
+        if (selectedGeometry) {
+            let res = selectedGeometry.positions.map(position => ({
+                ...position,
+                app: selectedGeometry.name,
+                total: selectedGeometry.total,
+                color: colorForName(selectedGeometry.name),
+                mode: 'selected'
+            }))//.filter(position => position.desktop == selectedDesktop);
+            console.log(res)
+            return res
+        }
+
+        let res =  geometryApps.map(app => ({
+            ...app.common,
+            app: app.name,
+            total: app.total,
+            color: colorForName(app.name),
+            mode: 'common'
+        }));
+        console.log(res)
+        return res
+    });
+
+    function geometryOpacity(position) {
+        if (selectedGeometry) {
+            const maxForApp = Math.max(...selectedGeometry.positions.map(pos => pos.count));
+            const t = maxForApp > 0 ? position.count / maxForApp : 0;
+            return Math.min(0.75, 0.08 + t * 0.6);
+        }
+
+        return 0.38;
+    }
+
+    function changeDesktop(direction) {
+        if (desktopIds.length === 0) return;
+        const currentIndex = Math.max(0, desktopIds.indexOf(String(selectedDesktop)));
+        const nextIndex = (currentIndex + direction + desktopIds.length) % desktopIds.length;
+        selectedDesktop = desktopIds[nextIndex];
+    }
 
     let desktopPie = $state(null);
     let desktopPieChart;
@@ -423,6 +598,11 @@
         <span style="color: #8b949e; font-weight: normal">{dominantApp?.dominance ?? 0}% of monitor</span>
     </div>
     <div class="info-box">
+        <span>Most Utilised App</span>
+        <span style="font-size: 2.2rem; font-weight: normal">{utilisedApp?.name ?? 'No data'}</span>
+        <span style="color: #8b949e; font-weight: normal">{utilisedAppCount.present} snapshots, {utilisedAppCount.focused} focused</span>
+    </div>
+    <div class="info-box">
         <span>Most Idle App</span>
         <span style="font-size: 2.2rem; font-weight: normal">{idleApp?.name ?? 'No data'}</span>
         <span style="color: #8b949e; font-weight: normal">{idleAppCount.present} snapshots, {idleAppCount.focused} focused</span>
@@ -475,6 +655,112 @@
             </div>
         </div>
     </div>
+    <div class="info-box">
+        <span style="margin-bottom: 1rem">App Dominance</span>
+        <div class="progress-container">
+            <div class="progress-column">
+                {#each dominanceApps as app (app.name)}
+                    <span>{app.name}</span>
+                {/each}
+            </div>
+            <div class="progress-column" style="flex: 1;">
+                {#each dominanceApps as app (app.name)}
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: {app.dominance}%"></div></div>
+                {/each}
+            </div>
+            <div class="progress-column">
+                {#each dominanceApps as app (app.name)}
+                    <span>{Math.floor(app.dominance)}%</span>
+                {/each}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="geometry-card">
+    <div class="geometry-header">
+        <span>App Geometry</span>
+
+        <div class="geometry-controls">
+            <div class="desktop-switcher">
+                <button type="button" onclick={() => changeDesktop(-1)} aria-label="Previous desktop">←</button>
+                <span>Desktop {selectedDesktop ?? '—'}</span>
+                <button type="button" onclick={() => changeDesktop(1)} aria-label="Next desktop">→</button>
+            </div>
+
+            <select class="geometry-select" bind:value={selectedGeometryApp} aria-label="Selected app geometry">
+                <option value="">Most common positions</option>
+                {#each geometryOptionApps as appName (appName)}
+                    <option value={appName}>
+                        {appName}{geometryData.byApp[appName] ? ` (${geometryData.byApp[appName].total} on this desktop)` : ''}
+                    </option>
+                {/each}
+            </select>
+        </div>
+    </div>
+
+    <div class="geometry-canvas">
+        <svg
+            class="geometry-svg"
+            viewBox="{monitorBounds.x} {monitorBounds.y} {monitorBounds.width} {monitorBounds.height}"
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            aria-label="Window geometry visualisation"
+        >
+            {#each monitors as monitor (monitor.id)}
+                <rect
+                    class="geometry-monitor"
+                    x={monitor.x}
+                    y={monitor.y}
+                    width={monitor.width}
+                    height={monitor.height}
+                    rx="16"
+                />
+            {/each}
+
+            {#if visibleGeometryPositions.length === 0}
+                <text
+                    class="geometry-empty"
+                    x={monitorBounds.x + monitorBounds.width / 2}
+                    y={monitorBounds.y + monitorBounds.height / 2}
+                    text-anchor="middle"
+                    dominant-baseline="middle"
+                >No geometry data for this range</text>
+            {/if}
+            {#each visibleGeometryPositions as position (`${position.app}-${position.x}-${position.y}-${position.width}-${position.height}-${position.desktop}`)}
+                {#if position.desktop == selectedDesktop}
+                    <rect
+                        class="geometry-window"
+                        x={position.x}
+                        y={position.y}
+                        width={position.width}
+                        height={position.height}
+                        rx="16"
+                        fill={position.color}
+                        fill-opacity={geometryOpacity(position)}
+                        stroke={position.color}
+                        stroke-opacity="0.9"
+                    />
+                    {#if !selectedGeometry}
+                        <text
+                            class="geometry-label"
+                            x={position.x + 12}
+                            y={position.y + 40}
+                        >{position.app}</text>
+                    {/if}
+                {/if}
+
+            {/each}
+        </svg>
+    </div>
+
+    <div class="geometry-footer">
+        {#if selectedGeometry || selectedGeometryApp}
+            {selectedGeometry.total ? selectedGeometry.total : 0} snapshots, {visibleGeometryPositions.length} unique posotions
+        {:else}
+            {visibleGeometryPositions.length} unique apps
+        {/if}
+    </div>
 </div>
 
 <div class="row">
@@ -505,7 +791,8 @@
     }
 
     .info-box,
-    .timeline-card {
+    .timeline-card,
+    .geometry-card {
         display: flex;
         flex-direction: column;
         align-self: left;
@@ -569,6 +856,105 @@
         font-size: 0.75rem;
         font-weight: normal;
         color: #8b949e;
+    }
+
+    .geometry-card {
+        gap: 0.5rem;
+    }
+
+    .geometry-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        gap: 1rem;
+    }
+
+    .geometry-subtitle,
+    .geometry-footer {
+        margin-top: 0.25rem;
+        color: #8b949e;
+        font-size: 0.8rem;
+        font-weight: normal;
+    }
+
+    .geometry-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .desktop-switcher {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #8b949e;
+        font-weight: normal;
+        white-space: nowrap;
+    }
+
+    .desktop-switcher button {
+        cursor: pointer;
+        border: 1px solid #3d444d;
+        border-radius: 0.4rem;
+        background-color: #151B23;
+        color: #ffffff;
+        padding: 0.3rem 0.55rem;
+        font: inherit;
+    }
+
+    .desktop-switcher button:hover {
+        background-color: #1E242A;
+    }
+
+    .geometry-select {
+        min-width: 14rem;
+        border: 1px solid #3d444d;
+        border-radius: 0.4rem;
+        background-color: #151B23;
+        color: #ffffff;
+        padding: 0.4rem 0.55rem;
+        font: inherit;
+        font-weight: normal;
+    }
+
+    .geometry-canvas {
+        background-color: #0D1117;
+        /*border: 1px solid #212830;*/
+        /*border-radius: 0.5rem;*/
+        overflow: hidden;
+    }
+
+    .geometry-svg {
+        display: block;
+        width: 100%;
+        aspect-ratio: 3520 / 1080;
+    }
+
+    .geometry-monitor {
+        fill: #151B23;
+        stroke: #3d444d;
+        stroke-width: 5;
+    }
+
+    .geometry-window {
+        stroke-width: 6;
+    }
+
+    .geometry-label {
+        fill: #ffffff;
+        font-size: 2.2rem;
+        font-weight: bold;
+        paint-order: stroke;
+        stroke: rgba(0, 0, 0, 0.8);
+        stroke-width: 0.5rem;
+    }
+
+    .geometry-empty {
+        fill: #8b949e;
+        font-size: 48px;
+        font-weight: 500;
     }
 
     .progress-container {
