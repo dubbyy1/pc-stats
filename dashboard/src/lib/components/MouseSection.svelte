@@ -335,35 +335,7 @@
         }
     }
 
-    let clickChart;
-    function chartClicks() {
-        if (clickChart) {clickChart.destroy();}
-        clickChart = new Chart(heatmapCanvas, {
-            type: "scatter",
-            data: {
-              datasets: [{
-                  data: filteredClicks
-                    .filter(click => click.button == "RIGHT")
-                    .map(click => ({x: click.x, y: click.y}))
-              }, {
-                  data: filteredClicks
-                    .filter(click => click.button == "MIDDLE")
-                    .map(click => ({x: click.x, y: click.y}))
-              }]
-            },
-            options: {
-                cutout: '30%',
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                }
-            }
-        });
-    }
     function drawClicks() {
-        // chartClicks();
-        // return;
         const ctx = heatmapCanvas.getContext('2d');
         ctx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
         drawMonitors();
