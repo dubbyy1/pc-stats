@@ -112,6 +112,9 @@ class Database:
         window_res:list[list[int|str]] = []
         windows = data["windows"]
         for window in windows:
+            if "active" in window:
+                continue
+
             geometry:list[int] = []
             if window["minimized"]:
                 geometry = [-1, -1, -1, -1]

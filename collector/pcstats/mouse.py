@@ -19,6 +19,13 @@ class Mouse:
 
         self.position_handler:PositionHandler = PositionHandler(self.compositor)
 
+        self.paused:bool = False
+
+    def pause(self):
+        self.paused = True
+    def resume(self):
+        self.paused = False
+
     def get_names(self):
         return [d.name for d in self.devices]
 
@@ -78,6 +85,8 @@ class Mouse:
 
     def poll(self) -> Generator[tuple[float, int, int, str]]:
         for event in self._read_all():
+            if self.paused:
+                continue
             if event.type == ecodes.EV_KEY and event.value == 1:
                 pos = self.get_position()
                 if pos:

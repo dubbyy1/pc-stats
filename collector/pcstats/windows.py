@@ -56,7 +56,6 @@ for (let w of windows) {
 
     const data = {
         name: w.resourceName || "",
-        caption: w.caption || "",
         pid: w.pid || 0,
         desktop,
         geometry: w.minimized ? [-1, -1, -1, -1] : [w.x, w.y, w.width, w.height],
@@ -86,15 +85,13 @@ print("windows: " + JSON.stringify(snapshot));
     def _normal_window(
         self,
         name: str,
-        caption: str,
         pid: int,
         desktop: int,
         geometry: list[int],
         minimized: bool = False,
     ) -> WindowRecord:
         return {
-            "name": name or caption or "unknown",
-            "caption": caption or "",
+            "name": name or "unknown",
             "pid": pid or 0,
             "desktop": desktop,
             "geometry": geometry,
@@ -246,11 +243,13 @@ print("windows: " + JSON.stringify(snapshot));
                 if not title:
                     title = window.get_wm_name() or ""
 
+                wm_class = window.get_wm_class()
+                app_name = wm_class[0] if wm_class else title
                 pid = self._get_window_int(window, wm_pid_atom)
                 desktop = self._get_window_int(window, wm_desktop_atom, -1)
                 geometry = self._get_x11_geometry(window, root)
 
-                record = self._normal_window(title, title, pid, desktop, geometry)
+                record = self._normal_window(app_name, pid, desktop, geometry)
                 windows.append(record)
 
                 if int(window_id) == active_id:
@@ -276,7 +275,7 @@ print("windows: " + JSON.stringify(snapshot));
         if active_result is not None and active_result.returncode == 0:
             try:
                 active_window = json.loads(active_result.stdout)
-                active = active_window.get("title") or active_window.get("class") or ""
+                active = active_window.get("class") or active_window.get("title") or ""
             except json.JSONDecodeError:
                 pass
 
@@ -295,8 +294,7 @@ print("windows: " + JSON.stringify(snapshot));
             size = client.get("size") or [-1, -1]
             workspace = client.get("workspace") or {}
             windows.append(self._normal_window(
-                client.get("title") or client.get("class") or "unknown",
-                client.get("title") or "",
+                client.get("class") or client.get("title") or "unknown",
                 int(client.get("pid") or 0),
                 int(workspace.get("id", 0)),
                 [int(at[0]), int(at[1]), int(size[0]), int(size[1])],
@@ -352,7 +350,7 @@ print("windows: " + JSON.stringify(snapshot));
         for node in self._walk_sway_nodes(tree):
             app_id = node.get("app_id")
             props = node.get("window_properties") or {}
-            name = node.get("name") or app_id or props.get("class") or "unknown"
+            name = app_id or props.get("class") or node.get("name") or "unknown"
             rect = node.get("rect") or {}
             geometry = [
                 int(rect.get("x", -1)),
@@ -363,7 +361,6 @@ print("windows: " + JSON.stringify(snapshot));
             desktop = int(node.get("pc_stats_workspace_num", current_desktop))
             record = self._normal_window(
                 name,
-                node.get("name") or "",
                 int(node.get("pid") or 0),
                 desktop,
                 geometry,
