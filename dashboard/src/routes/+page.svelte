@@ -13,6 +13,8 @@
     let screenH = $state(0);
     let monitors = $state([]);
     let allClicks = $state([]);
+    let windows = $state([]);
+    let windowSnapshots = $state([]);
 
     const DB_CACHE_NAME = 'pc-stats-cache';
     const DB_STORE_NAME = 'files';
@@ -78,6 +80,9 @@
     function parseFile(db) {
         monitors = getRows(db, 'SELECT id, name, x, y, width, height FROM monitors');
         allClicks = getRows(db, 'SELECT id, timestamp, x, y, button FROM clicks');
+
+        windows = getRows(db, 'SELECT ssid, name, pid, desktop, x, y, width, height FROM windows');
+        windowSnapshots = getRows(db, 'SELECT id, timestamp, active, current_desktop FROM window_snapshots');
 
         screenW = 0;
         screenH = 0;
@@ -180,7 +185,11 @@
                     screenH={screenH}
                 />
             {:else if activeSection === 'window'}
-                <WindowSection />
+                <WindowSection
+                    {monitors}
+                    {windows}
+                    {windowSnapshots}
+                />
             {/if}
         </div>
     </div>

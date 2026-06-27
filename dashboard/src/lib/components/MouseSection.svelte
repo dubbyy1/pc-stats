@@ -1,6 +1,7 @@
 <script>
     import Chart from 'chart.js/auto';
     import { onDestroy, tick } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 
     let {
         allClicks = [],
@@ -169,6 +170,24 @@
         document.body.style.userSelect = '';
     }
 
+    let clickInfo = $derived.by(() => {
+        let uniqueDates = new SvelteSet();
+        let uniqueHours = new SvelteSet();
+
+        for (const {timestamp} of allClicks) {
+            let time = new Date(timestamp * 1000);
+            uniqueDates.add(time.toDateString());
+            uniqueHours.add(time.toDateString() + " " + time.getHours());
+        }
+
+        return {
+            clicksPerDay: Math.round(allClicks.length / uniqueDates.size),
+            clicksPerHour: Math.round(allClicks.length / uniqueHours.size),
+            daysCounted: uniqueDates.size,
+            hoursCounted: uniqueHours.size
+        };
+    })
+
     function drawButtonPie() {
         if (buttonChart) buttonChart.destroy();
         buttonChart = new Chart(buttonPie, {
@@ -316,7 +335,35 @@
         }
     }
 
+    let clickChart;
+    function chartClicks() {
+        if (clickChart) {clickChart.destroy();}
+        clickChart = new Chart(heatmapCanvas, {
+            type: "scatter",
+            data: {
+              datasets: [{
+                  data: filteredClicks
+                    .filter(click => click.button == "RIGHT")
+                    .map(click => ({x: click.x, y: click.y}))
+              }, {
+                  data: filteredClicks
+                    .filter(click => click.button == "MIDDLE")
+                    .map(click => ({x: click.x, y: click.y}))
+              }]
+            },
+            options: {
+                cutout: '30%',
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    }
     function drawClicks() {
+        // chartClicks();
+        // return;
         const ctx = heatmapCanvas.getContext('2d');
         ctx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
         drawMonitors();
@@ -414,7 +461,20 @@
     </div>
 </div>
 
-<div class="summary-row">
+<div class="row">
+    <div class="info-box">
+        <span>Clicks Per Day</span>
+        <span style="font-size: 2.2rem; font-weight: normal">{clickInfo.clicksPerDay}</span>
+        <span style="color: #8b949e; font-weight: normal">{clickInfo.daysCounted} active days</span>
+    </div>
+    <div class="info-box">
+        <span>Clicks Per Hour</span>
+        <span style="font-size: 2.2rem; font-weight: normal">{clickInfo.clicksPerHour}</span>
+        <span style="color: #8b949e; font-weight: normal">{clickInfo.hoursCounted} active hours</span>
+    </div>
+</div>
+
+<div class="row">
     <div class="pie-container">
         <span>Buttons</span>
         <div class="pie-wrapper">
@@ -597,7 +657,7 @@
         max-height: 100%;
     }
 
-    .summary-row {
+    .row {
         display: flex;
         gap: 1rem;
     }
@@ -653,6 +713,19 @@
         flex-direction: column;
         align-self: left;
         gap: 0.5rem;
+        flex: 1;
+        padding: 0.75rem 1rem 1rem 1rem;
+        border: 1px solid #3d444d;
+        border-radius: 0.5rem;
+        font-size: 0.9rem;
+        font-weight: bold;
+        color: #fff;
+    }
+
+    .info-box {
+        display: flex;
+        flex-direction: column;
+        align-self: left;
         flex: 1;
         padding: 0.75rem 1rem 1rem 1rem;
         border: 1px solid #3d444d;
