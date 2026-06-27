@@ -6,6 +6,7 @@ class Compositor(Enum):
     KDE_WAYLAND = auto()
     GNOME_WAYLAND = auto()
     HYPRLAND = auto()
+    SWAY = auto()
     UNSUPPORTED = auto()
 
 
@@ -22,4 +23,6 @@ def detect_compositor() -> Compositor:
             return Compositor.GNOME_WAYLAND
         if "hyprland" in desktop:
             return Compositor.HYPRLAND
+        if "sway" in desktop:
+            return Compositor.SWAY
     return Compositor.UNSUPPORTED

@@ -41,7 +41,7 @@ class Database:
             CREATE TABLE IF NOT EXISTS window_snapshots (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp       REAL    NOT NULL,
-                active_pid      INTEGER NOT NULL,
+                active          STRING  NOT NULL,
                 current_desktop INTEGER NOT NULL
             )
             """
@@ -94,19 +94,20 @@ class Database:
     def store_windows(self, data):
         if not data:
             return None
-        window_snapshot_id:int = self.conn.execute("SELECT MAX(id) FROM window_snapshots").fetchone()[0]
-        if not window_snapshot_id:
-            window_snapshot_id = 0
-        print()
 
-        snapshot:dict[str,int] = data["snapshot"]
+        snapshot:dict[str,str|int] = data["snapshot"]
+
         _ = self.conn.execute(
             """
-            INSERT INTO window_snapshots (timestamp, active_pid, current_desktop)
+            INSERT INTO window_snapshots (timestamp, active, current_desktop)
             VALUES (?, ?, ?)
             """,
-            (time(), snapshot["active_pid"], snapshot["current_desktop"])
+            (time(), snapshot["active"], snapshot["current_desktop"])
         )
+
+        window_snapshot_id:int = self.conn.execute("SELECT MAX(id) FROM window_snapshots").fetchone()[0]
+        if not window_snapshot_id:
+            window_snapshot_id = 1
 
         window_res:list[list[int|str]] = []
         windows = data["windows"]
@@ -140,8 +141,7 @@ class Database:
 
         self.conn.commit()
 
-        last_active_window = self.conn.execute("SELECT name FROM windows WHERE pid = ?", (snapshot["active_pid"],)).fetchone()[0]
         return {
-            "last_active_window": last_active_window,
+            "last_active_window": snapshot["active"],
             "window_snapshots": window_snapshot_id,
         }
