@@ -4,6 +4,8 @@
 
 PC Stats records mouse click and window activity on Linux and visualises it in a browser dashboard. The collector runs locally, writes data to a SQLite database, and the dashboard reads that database to show heatmaps, charts, and app usage statistics.
 
+Your data never leaves your device. Collection happens locally, the database is stored locally, and the dashboard reads the selected database in your browser.
+
 ## What It Tracks
 
 - Mouse click position across all detected monitors
@@ -41,7 +43,7 @@ The hosted dashboard is available at:
 https://pc-stats.dubbyy.com
 ```
 
-Use **Import Data** and select your `stats.db` file. The dashboard runs in the browser using `sql.js`; imported databases are cached locally in the browser so the last imported file can be reopened automatically.
+Use **Import Data** and select your `stats.db` file. The dashboard runs in the browser using `sql.js`; imported databases are cached locally in the browser so the last imported file can be reopened automatically. The database is not uploaded anywhere.
 
 You can also load a database URL with the `db` query parameter:
 
