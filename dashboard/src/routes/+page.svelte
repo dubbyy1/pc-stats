@@ -173,6 +173,10 @@
                 Windows
             </button>
         </div>
+
+        <a class="company-mark" href="https://dubbyy.com" aria-label="dubbyy">
+            <span class="company-logo" aria-hidden="true"></span>
+        </a>
     </div>
 
     <div class="content">
@@ -270,6 +274,29 @@
         display: flex;
         flex-direction: column;
         padding: 0.5rem 0.5rem;
+    }
+
+    .company-mark {
+        display: flex;
+        align-items: center;
+        margin-top: auto;
+        padding: 1rem;
+        width: fit-content;
+    }
+
+    .company-logo {
+        width: 3rem;
+        height: 3rem;
+        background-color: #ffffff;
+        -webkit-mask: url('/company-logo.svg') center / contain no-repeat;
+        mask: url('/company-logo.svg') center / contain no-repeat;
+        opacity: 0.76;
+        transition: background-color 0.16s, opacity 0.16s;
+    }
+
+    .company-mark:hover .company-logo {
+        background-color: #ff8000;
+        opacity: 0.92;
     }
 
     .section-button {
